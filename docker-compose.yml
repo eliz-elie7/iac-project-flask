@@ -5,11 +5,15 @@ services:
       - "5000:5000"
     depends_on:
       - db
-    environment:
-      - DATABASE_URL=postgresql://iac_user:iac_pass@db:5432/iac_project
+    env_file:
+      - .env
+    volumes:
+      - ./app:/code/app
 
   db:
     image: postgres:16
+    env_file:
+      - .env
     environment:
       - POSTGRES_USER=iac_user
       - POSTGRES_PASSWORD=iac_pass

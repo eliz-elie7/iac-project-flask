@@ -1,13 +1,15 @@
+import os
 from flask import Flask
+from dotenv import load_dotenv
 from app.extensions import db, migrate, login_manager
 from app.models import User
 
+load_dotenv()
+
 def create_app():
     app = Flask(__name__)
-    app.config['SECRET_KEY'] = 'change-me-in-.env'
-    app.config['SQLALCHEMY_DATABASE_URI'] = (
-        'postgresql://iac_user:iac_pass@db:5432/iac_project'
-    )
+    app.config['SECRET_KEY'] = os.environ['FLASK_SECRET_KEY']
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
