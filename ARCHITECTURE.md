@@ -68,8 +68,8 @@ dépendance bloquante entre les deux.
         v                                                   v
  Accès direct pour le client                    Surveillance continue (HA)
  via Terminal (ssh user@ip -p)                  Health-checks & Relance si crash
+```
 
----
 
 ## 2. Schéma de base de données
 
