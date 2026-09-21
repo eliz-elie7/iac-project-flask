@@ -21,6 +21,54 @@ L'API Flask ne manipule jamais Docker ou Ansible directement : elle passe systé
 de développer et tester la partie applicative et la partie infrastructure en parallèle, sans
 dépendance bloquante entre les deux.
 
+```text
+                     UTILISATEUR (Navigateur Web)
+                                  |
+                                  v
+                  APPLICATION WEB FLASK (Portail)
+                                  |
+        +-------------------------+-------------------------+
+        |                                                   |
+        v                                                   v
+ Créer un compte                                          Login
+        |                                                   |
+        +-------------------------+-------------------------+
+                                  |
+                                  v
+                    DASHBOARD (Tableau de bord)
+                                  |
+                        "Louer une instance"
+                                  |
+              +-------------------+-------------------+
+              |                                       |
+              v                                       v
+    Choix de la Distribution                   Choix de la Durée
+      (ex: Ubuntu, Debian)                       (ex: 2h, 24h)
+              |                                       |
+              +-------------------+-------------------+
+                                  |
+                                  v
+                         API FLASK (Backend)
+                                  |
+        +-------------------------+-------------------------+
+        |                                                   |
+        v                                                   v
+ BASE DE DONNÉES (PostgreSQL)                     ORCHESTRATION (IaC)
+ Enregistrement de la location               1. Création du conteneur (Docker)
+ et de l'état (InstanceState)                2. Provisionning & Sécu (Ansible)
+        |                                                   |
+        +-------------------------+-------------------------+
+                                  |
+                                  v
+                    GÉNÉRATION DES ACCÈS SSH
+                 (Affichage des logs sur le Dashboard)
+                                  |
+        +-------------------------+-------------------------+
+        |                                                   |
+        v                                                   v
+ Accès direct pour le client                    Surveillance continue (HA)
+ via Terminal (ssh user@ip -p)                  Health-checks & Relance si crash
+
 ---
 
 ## 2. Schéma de base de données
