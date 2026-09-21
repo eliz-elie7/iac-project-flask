@@ -1,3 +1,4 @@
+```mermaid
 erDiagram
     USER ||--o{ RENTAL : "effectue"
     RENTAL ||--|| INSTANCE_STATE : "possède"
@@ -28,3 +29,4 @@ erDiagram
         datetime last_checked_at
         int repair_attempts
     }
+```
