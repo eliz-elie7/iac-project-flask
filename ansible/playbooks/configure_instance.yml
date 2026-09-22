@@ -1,0 +1,13 @@
+- name: Configurer une instance louée
+  hosts: instance
+  gather_facts: false
+  tasks:
+    - name: Attendre que SSH soit disponible
+      wait_for_connection:
+        timeout: 30
+
+    - name: Injecter la clé publique de l'utilisateur
+      authorized_key:
+        user: root
+        key: "{{ pubkey }}"
+        state: present

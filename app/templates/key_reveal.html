@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Instance créée : {{ rental.instance_id }}</h1>
+<p><strong>Attention :</strong> cette clé privée ne sera plus jamais affichée. Copie-la maintenant dans un fichier local (ex : {{ rental.instance_id }}.pem).</p>
+
+<pre>{{ private_key }}</pre>
+
+<p>Connexion :</p>
+<pre>ssh -i {{ rental.instance_id }}.pem -p {{ ssh_port }} root@{{ ssh_host }}</pre>
+
+<a href="{{ url_for('dashboard.index') }}">Retour au dashboard</a>
+{% endblock %}

@@ -1,0 +1,7 @@
+services:
+  instance:
+    image: "{{ distribution_image }}"
+    container_name: "instance-{{ instance_id }}"
+    ports:
+      - "{{ ssh_port }}:22"
+    restart: unless-stopped

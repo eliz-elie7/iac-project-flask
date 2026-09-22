@@ -7,6 +7,11 @@ services:
       - db
     environment:
       - DATABASE_URL=postgresql://iac_user:iac_pass@db:5432/iac_project
+    volumes:
+      - ./app:/code/app
+      - ./ansible:/code/ansible
+      - ./instances:/code/instances
+      - /var/run/docker.sock:/var/run/docker.sock
 
   db:
     image: postgres:16

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Louer une nouvelle instance</h1>
+<form method="POST">
+    <label for="distribution">Distribution</label>
+    <select name="distribution" id="distribution">
+        {% for d in distributions %}
+        <option value="{{ d }}">{{ d }}</option>
+        {% endfor %}
+    </select>
+
+    <label for="duration_hours">Durée (heures)</label>
+    <input type="number" name="duration_hours" id="duration_hours" min="1" max="72" value="2" required>
+
+    <button type="submit">Louer</button>
+</form>
+<a href="{{ url_for('dashboard.index') }}">Retour au dashboard</a>
+{% endblock %}
