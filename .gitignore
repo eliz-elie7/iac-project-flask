@@ -2,3 +2,9 @@ venv/
 __pycache__/
 *.pyc
 .env
+
+# Runtime SSH keys and generated instance files
+*.pem
+ansible/files/provisioning_key
+instances/keys/
+instances/[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]/

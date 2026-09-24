@@ -5,6 +5,7 @@ WORKDIR /code
 RUN apt-get update && apt-get install -y --no-install-recommends \
         docker.io \
         docker-cli \
+        docker-compose \
         ansible \
         openssh-client \
     && rm -rf /var/lib/apt/lists/*

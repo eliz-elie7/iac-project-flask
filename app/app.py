@@ -21,8 +21,10 @@ def create_app():
 
     from app.auth import auth_bp
     from app.dashboard import dashboard_bp
+    from app.scheduler import start_scheduler
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
+    start_scheduler(app)
 
     return app
 

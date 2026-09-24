@@ -1,13 +1,22 @@
 - name: Configurer une instance louée
   hosts: instance
   gather_facts: false
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
   tasks:
     - name: Attendre que SSH soit disponible
       wait_for_connection:
         timeout: 30
 
-    - name: Injecter la clé publique de l'utilisateur
-      authorized_key:
+    - name: Vérifier que la clé publique est complète
+      ansible.builtin.assert:
+        that:
+          - (pubkey | default('') | trim).split() | length >= 2
+        fail_msg: "La clé publique reçue est vide ou invalide."
+
+    - name: Ajouter la clé publique de l'utilisateur
+      ansible.posix.authorized_key:
         user: root
-        key: "{{ pubkey }}"
+        key: "{{ pubkey | trim }}"
         state: present
+        exclusive: false

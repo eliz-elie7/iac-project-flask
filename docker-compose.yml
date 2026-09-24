@@ -7,6 +7,7 @@ services:
       - db
     environment:
       - DATABASE_URL=postgresql://iac_user:iac_pass@db:5432/iac_project
+      - ANSIBLE_CONFIG=/code/ansible/ansible.cfg
     volumes:
       - ./app:/code/app
       - ./ansible:/code/ansible

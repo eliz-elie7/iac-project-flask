@@ -10,5 +10,8 @@ RUN sed -i 's/#PermitRootLogin.*/PermitRootLogin prohibit-password/' /etc/ssh/ss
 
 RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
 
+COPY provisioning_key.pub /root/.ssh/authorized_keys
+RUN chmod 600 /root/.ssh/authorized_keys
+
 EXPOSE 22
 CMD ["/usr/sbin/sshd", "-D"]
