@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Louer une instance</h1>
+<form method="POST">
+    <label>Distribution</label>
+    <select name="distribution" required>
+        <option value="ubuntu-22.04">Ubuntu 22.04</option>
+        <option value="debian-12">Debian 12</option>
+    </select>
+
+    <label>Durée (heures)</label>
+    <input type="number" name="duration_hours" min="1" max="72" value="1" required>
+
+    <button type="submit">Louer</button>
+</form>
+<a href="{{ url_for('dashboard.index') }}">Retour au dashboard</a>
+{% endblock %}

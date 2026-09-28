@@ -9,6 +9,9 @@ services:
       - .env
     volumes:
       - ./app:/code/app
+      - ./instances:/code/instances
+      - ./ansible:/code/ansible
+      - /var/run/docker.sock:/var/run/docker.sock
 
   db:
     image: postgres:16

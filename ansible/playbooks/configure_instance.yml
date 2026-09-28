@@ -1,13 +1,13 @@
 - name: Configurer une instance louée
-  hosts: instance
+  hosts: all
   gather_facts: false
   tasks:
-    - name: Attendre que SSH soit disponible
-      wait_for_connection:
+    - name: Attendre que le conteneur réponde
+      ansible.builtin.wait_for_connection:
         timeout: 30
 
     - name: Injecter la clé publique de l'utilisateur
-      authorized_key:
+      ansible.posix.authorized_key:
         user: root
         key: "{{ pubkey }}"
         state: present
