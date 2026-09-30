@@ -1,0 +1,7 @@
+services:
+  instance:
+    image: "iac-project/debian-12-ssh"
+    container_name: "instance-23f97ac6"
+    ports:
+      - "22282:22"
+    restart: unless-stopped

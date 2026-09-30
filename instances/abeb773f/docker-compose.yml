@@ -1,0 +1,7 @@
+services:
+  instance:
+    image: "iac-project/ubuntu-22.04-ssh"
+    container_name: "instance-abeb773f"
+    ports:
+      - "22748:22"
+    restart: unless-stopped

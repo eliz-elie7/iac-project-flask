@@ -1,77 +1,122 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.extensions import db
-from app.models import Rental, InstanceState
-from app.orchestrator import check_status, repair, teardown, ProvisioningError, TeardownError
+from app.models import Rental, Instance, Worker
+from app.resource_manager import (
+    check_instance_status, repair_instance, teardown_instance,
+    migrate_instance_to_new_worker, NoWorkerAvailableError,
+    PENDING_NOTIFICATIONS,
+)
 
-MAX_REPAIR_ATTEMPTS = 3
+WORKER_HEARTBEAT_TIMEOUT = 60  # secondes ; 3x l'intervalle de heartbeat (20s) pour tolérer un aléa réseau
 
 
-def _check_active_rentals(app):
-    """Vérifie chaque location active et répare si besoin. Tourne toutes les 30-60s."""
+def _check_instance_health(app):
+    """Vérifie chaque instance active dont le Worker est sain, répare si besoin."""
     with app.app_context():
         rentals = Rental.query.filter_by(status='active').all()
 
         for rental in rentals:
-            state = rental.instance_state
-            if state is None:
-                continue  # ne devrait pas arriver, mais on ne casse rien si c'est le cas
+            instance = rental.instance
+            if instance is None or instance.worker is None or instance.worker.status != 'AVAILABLE':
+                continue  # Worker OFFLINE : c'est _check_workers qui gère la migration
 
-            result = check_status(rental.instance_id)
-            state.last_status = result['status']
-            state.last_checked_at = datetime.utcnow()
+            status = check_instance_status(instance)
+            instance.status = status
 
-            if result['status'] == 'unreachable':
-                if state.repair_attempts >= MAX_REPAIR_ATTEMPTS:
-                    rental.status = 'terminated'
-                    app.logger.warning(
-                        f"Instance {rental.instance_id} abandonnée après "
-                        f"{MAX_REPAIR_ATTEMPTS} tentatives de réparation."
-                    )
+            if status == 'unreachable':
+                if repair_instance(instance):
+                    app.logger.info(f"Instance {instance.id} réparée sur son Worker actuel")
                 else:
-                    try:
-                        repair(rental.instance_id)
-                        state.repair_attempts += 1
-                        app.logger.info(f"Réparation tentée sur {rental.instance_id}")
-                    except ProvisioningError as e:
-                        app.logger.error(f"Échec de réparation sur {rental.instance_id} : {e}")
-            else:
-                state.repair_attempts = 0  # remise à zéro dès que l'instance répond de nouveau
+                    app.logger.error(f"Échec de réparation de l'instance {instance.id}")
 
         db.session.commit()
 
 
+def _check_workers(app):
+    """Détecte les Workers dont le heartbeat est trop ancien et migre leurs instances."""
+    with app.app_context():
+        threshold = datetime.utcnow() - timedelta(seconds=WORKER_HEARTBEAT_TIMEOUT)
+        stale_workers = Worker.query.filter(
+            Worker.status != 'OFFLINE',
+            Worker.last_heartbeat < threshold,
+        ).all()
+
+        for worker in stale_workers:
+            app.logger.warning(
+                f"Worker {worker.hostname} déclaré OFFLINE "
+                f"(dernier heartbeat : {worker.last_heartbeat})"
+            )
+            worker.status = 'OFFLINE'
+            _migrate_instances_from(worker, app)
+
+        db.session.commit()
+
+
+def _migrate_instances_from(worker, app):
+    affected = Instance.query.filter_by(worker_id=worker.id) \
+        .filter(Instance.status != 'stopped').all()
+
+    for instance in affected:
+        rental = instance.rental
+        if rental is None or rental.status != 'active':
+            continue
+
+        try:
+            result = migrate_instance_to_new_worker(instance.distribution)
+        except NoWorkerAvailableError:
+            app.logger.error(
+                f"Migration impossible pour l'instance {instance.id} : aucun Worker disponible"
+            )
+            instance.status = 'stopped'
+            continue
+
+        old_worker_id = instance.worker_id
+        instance.worker_id = result['worker_id']
+        instance.container_id = result['instance_key']
+        instance.ssh_port = result['ssh_port']
+        instance.status = 'running'
+
+        # Nouvelle clé SSH : à afficher une seule fois au prochain accès au dashboard
+        PENDING_NOTIFICATIONS[rental.id] = {
+            'private_key': result['private_key'],
+            'ssh_host': result['ssh_host'],
+        }
+
+        app.logger.info(
+            f"Instance {instance.id} migrée du Worker {old_worker_id} "
+            f"vers le Worker {result['worker_id']}"
+        )
+
+
 def _cleanup_expired_rentals(app):
-    """Termine et nettoie les locations dont la durée est dépassée."""
     with app.app_context():
         expired = Rental.query.filter(
             Rental.status == 'active',
-            Rental.expires_at <= datetime.utcnow(),
+            Rental.end_time <= datetime.utcnow(),
         ).all()
 
         for rental in expired:
-            try:
-                teardown(rental.instance_id)
-            except TeardownError as e:
-                app.logger.error(f"Échec du teardown de {rental.instance_id} : {e}")
-                continue  # on retentera au prochain cycle plutôt que de marquer 'expired' à tort
+            if rental.instance is not None and rental.instance.worker is not None:
+                if not teardown_instance(rental.instance):
+                    app.logger.error(f"Échec du teardown de l'instance {rental.instance.id}")
+                    continue
+                rental.instance.status = 'stopped'
 
             rental.status = 'expired'
-            app.logger.info(f"Location {rental.instance_id} terminée (expiration).")
+            app.logger.info(f"Location {rental.id} terminée (expiration).")
 
         db.session.commit()
 
 
 def init_scheduler(app):
     scheduler = BackgroundScheduler()
-    scheduler.add_job(
-        func=_check_active_rentals, args=[app],
-        trigger='interval', seconds=45, id='health_check',
-    )
-    scheduler.add_job(
-        func=_cleanup_expired_rentals, args=[app],
-        trigger='interval', seconds=60, id='expiration_cleanup',
-    )
+    scheduler.add_job(func=_check_instance_health, args=[app],
+                       trigger='interval', seconds=45, id='instance_health_check')
+    scheduler.add_job(func=_check_workers, args=[app],
+                       trigger='interval', seconds=30, id='worker_health_check')
+    scheduler.add_job(func=_cleanup_expired_rentals, args=[app],
+                       trigger='interval', seconds=60, id='expiration_cleanup')
     scheduler.start()
     return scheduler

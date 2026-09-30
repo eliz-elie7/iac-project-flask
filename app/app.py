@@ -14,7 +14,7 @@ def create_app():
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
     db.init_app(app)
-    migrate.init_app(app, db)
+    migrate.init_app(app, db, directory='app/migrations')
     login_manager.init_app(app)
     login_manager.login_view = 'auth.login'
 
@@ -24,8 +24,11 @@ def create_app():
 
     from app.auth import auth_bp
     from app.dashboard import dashboard_bp
+    from app.resource_manager import resource_bp
+
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
+    app.register_blueprint(resource_bp)
 
     # Le reloader Flask (mode debug) démarre le process deux fois : sans cette
     # condition, le scheduler tournerait en double et réparerait/nettoierait deux fois.

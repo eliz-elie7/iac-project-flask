@@ -1,113 +1,144 @@
-# Contrat d'interface — API Flask ↔ Couche d'orchestration (Ansible/Docker)
+# Contrat d'interface — Controller ↔ Resource Manager ↔ Worker Agent
 
 ## Principe général
 
-L'API Flask ne manipule jamais Docker ou Ansible directement. Elle appelle une couche
-d'orchestration unique (`orchestrator.py`) qui expose les fonctions ci-dessous. Ce découplage
-permet de développer et tester les deux côtés (application web / infrastructure) en parallèle.
+Le Controller (Flask) ne manipule jamais Docker ou Ansible directement. Il délègue toute
+opération sur une instance au **Resource Manager** (module interne du Controller), qui
+sélectionne un Worker disponible et communique avec son **Worker Agent** via une petite API
+HTTP interne, jamais exposée à l'extérieur du réseau Docker Compose.
+
+```
+Utilisateur → Flask (Controller) → Resource Manager → Worker Agent (conteneur) → Docker/Ansible
+                    ↑                                        │
+                    └──────── register / heartbeat ──────────┘
+```
+
+Chaque Worker est un conteneur Docker autonome faisant tourner un agent Python/Flask. Trois
+Workers sont déployés (`worker1`, `worker2`, `worker3`), chacun avec son propre accès au
+moteur Docker de l'hôte.
+
+**Simplification assumée et validée par l'enseignante** : les Workers sont des conteneurs
+partageant le moteur Docker de la machine hôte, et non des VM Vagrant isolées. Voir
+`ARCHITECTURE.md` pour la justification complète.
 
 ---
 
-## 1. Provisioning — créer une instance
+## 1. Enregistrement d'un Worker (Worker Agent → Controller)
 
-```python
-provision(
-    user_id: int,
-    distribution: str,      # ex: "ubuntu-22.04"
-    duration_hours: int
-) -> dict
+```
+POST /workers/register
+Body : { "hostname": str, "ip": str, "cpu": str, "memory": str }
+Retour : { "worker_id": int }
 ```
 
-### Déroulement interne (côté orchestration)
-1. Génère un `instance_id` unique (UUID).
-2. Génère une paire de clés SSH dédiée à cette instance (`instance_id.pub` / `instance_id.pem`).
-3. Lance `docker compose up` (ou `docker run`) pour créer le conteneur correspondant à la
-   distribution demandée.
-4. Lance `ansible-playbook site.yml -i <ip_conteneur>, --extra-vars "pubkey=..."` pour injecter
-   la clé publique et appliquer la configuration de base.
-5. Retourne un résultat structuré à l'API.
+Appelé automatiquement au démarrage de chaque Worker Agent. Si le `hostname` est déjà connu
+(redémarrage d'un agent existant), le Worker est simplement remis à `AVAILABLE` plutôt que
+dupliqué.
 
-### Retour attendu par l'API
+## 2. Heartbeat périodique (Worker Agent → Controller)
+
+```
+POST /workers/heartbeat
+Body : { "worker_id": int, "status": str, "cpu": str, "memory": str }
+Retour : { "status": "ok" }
+```
+
+Envoyé toutes les 20 secondes. Si le Controller ne reçoit aucun heartbeat d'un Worker pendant
+plus de 60 secondes, celui-ci est déclaré `OFFLINE` par le scheduler et ses instances sont
+migrées (voir section 6).
+
+## 3. Provisioning d'une instance (Resource Manager → Worker Agent choisi)
+
+```
+POST http://<worker_hostname>:6000/internal/provision
+Body : { "instance_id": str, "docker_image": str }
+```
+
+### Déroulement interne côté Worker Agent
+1. Génère un fichier `docker-compose.yml` dédié à partir du template, avec un port SSH libre
+   dans la plage 22000-22999.
+2. Lance `docker compose up -d`.
+3. Génère une paire de clés SSH dédiée à cette instance.
+4. Applique le playbook Ansible (`configure_instance.yml`) via connexion `docker exec`
+   (module `community.docker.docker`), qui injecte la clé publique. Idempotent.
+
+### Retour attendu
 ```json
 {
-  "status": "success",
   "instance_id": "a1b2c3d4",
-  "ssh_host": "127.0.0.1",
-  "ssh_port": 2201,
+  "container_id": "instance-a1b2c3d4",
+  "ssh_host": "<adresse publique du Worker>",
+  "ssh_port": 22750,
   "private_key": "-----BEGIN OPENSSH PRIVATE KEY-----..."
 }
 ```
 
-**Règle de sécurité** : `private_key` est affichée une seule fois à l'utilisateur côté interface
-web, puis n'est jamais conservée en clair côté serveur (soit non stockée, soit stockée chiffrée
-si une réémission est nécessaire).
+**Règle de sécurité inchangée** : `private_key` est affichée une seule fois côté interface
+web, jamais stockée en base, ni côté Controller ni côté Worker.
+
+## 4. Vérification de statut
+
+```
+GET http://<worker_hostname>:6000/internal/status/<instance_id>
+Retour : { "status": "running" | "stopped" | "unreachable" }
+```
+
+Le Worker Agent vérifie que le conteneur tourne (`docker inspect`) puis tente une connexion
+TCP vers son propre port SSH exposé sur l'hôte (`host.docker.internal`), sans authentification,
+pour confirmer que `sshd` répond réellement (pas seulement que le conteneur est démarré).
+
+## 5. Réparation (même Worker)
+
+```
+POST http://<worker_hostname>:6000/internal/repair/<instance_id>
+Retour : { "status": "repaired" }
+```
+
+Relance le conteneur (`docker compose up -d`, idempotent) et ré-applique le playbook Ansible
+sans changer la clé SSH existante. Utilisé quand l'instance est `unreachable` mais que son
+Worker est toujours sain.
+
+## 6. Migration vers un nouveau Worker (panne du Worker hébergeant l'instance)
+
+Quand un Worker est déclaré `OFFLINE` (heartbeat expiré), le Resource Manager provisionne une
+**nouvelle** instance sur un autre Worker disponible, pour chaque instance active hébergée sur
+le Worker en panne — il ne s'agit pas d'un déplacement du conteneur existant (impossible, le
+Worker ne répond plus), mais d'une recréation.
+
+Conséquence assumée : l'instance recréée obtient une **nouvelle clé SSH**. La clé précédente
+est perdue. L'utilisateur est informé via une notification éphémère affichée une seule fois au
+prochain chargement du dashboard (jamais persistée en base).
+
+## 7. Fin de location / nettoyage
+
+```
+POST http://<worker_hostname>:6000/internal/teardown/<instance_id>
+Retour : { "status": "removed" }
+```
+
+Arrête et supprime le conteneur, nettoie les clés SSH et le dossier de l'instance.
 
 ---
 
-## 2. Vérification de statut (support de la haute disponibilité)
+## Convention technique commune
 
-```python
-check_status(instance_id: str) -> dict
-```
+- Toutes les fonctions du Resource Manager vivent dans `app/resource_manager.py`, appelées par
+  `app/dashboard.py` et `app/scheduler.py`.
+- Toute la logique Docker/Ansible vit dans `worker/agent.py`, jamais importée directement par
+  le Controller.
+- Les échecs HTTP entre Resource Manager et Worker Agent sont traduits en exceptions Python
+  explicites côté Controller :
+  - `NoWorkerAvailableError` — aucun Worker `AVAILABLE` au moment de la demande
+  - `ProvisioningError` — échec renvoyé par l'agent (image introuvable, échec Ansible, etc.)
+- Le port interne des agents (6000) n'est jamais exposé sur l'hôte — seul le réseau Docker
+  Compose interne y donne accès.
 
-### Retour
-```json
-{ "instance_id": "a1b2c3d4", "status": "running" | "stopped" | "unreachable" }
-```
+## Points tranchés
 
-L'API appelle cette fonction périodiquement (toutes les 30 à 60 secondes, via un scheduler) et
-déclenche une réparation automatique si le statut est `unreachable`.
-
----
-
-## 3. Réparation / redémarrage
-
-```python
-repair(instance_id: str) -> dict
-```
-
-Relance le conteneur concerné et ré-applique le playbook Ansible associé. Le playbook doit être
-**idempotent** : une nouvelle exécution ne doit ni casser la configuration existante, ni changer
-la clé SSH déjà en place chez l'utilisateur.
-
----
-
-## 4. Fin de location / nettoyage
-
-```python
-teardown(instance_id: str) -> bool
-```
-
-Arrête et supprime le conteneur, et nettoie toutes les ressources associées (clés, entrées
-réseau, etc.). Déclenchée automatiquement à l'expiration de la durée de location.
-
----
-
-## 5. Convention technique commune
-
-- Toutes ces fonctions vivent dans un module Python unique (`orchestrator.py`), importé
-  directement par l'API Flask — pas d'appel shell externe si les deux parties du binôme
-  travaillent en Python, pour faciliter le débogage.
-- Chaque fonction lève une exception explicite en cas d'échec :
-  - `ProvisioningError` — échec de création du conteneur ou du playbook
-  - `TimeoutError` — l'instance ne répond pas dans le délai imparti
-  - `TeardownError` — échec du nettoyage
-- L'API attrape ces exceptions et traduit chacune en message clair pour l'utilisateur final
-  (jamais de trace technique brute affichée côté interface web).
-
----
-
-## Schéma des échanges
-
-```
-Utilisateur → Flask API → orchestrator.py → Docker / Ansible
-                              ↑                    │
-                              └── retour structuré ─┘
-```
-
-## Points à trancher (à documenter dans le rapport, section "Architecture")
-
-- Mode d'affichage de la clé privée à l'utilisateur (texte affiché une fois / fichier .pem
-  téléchargeable).
-- Mécanisme exact de `check_status` : health-check natif Docker (`docker inspect`) ou script
-  de vérification SSH actif.
+- Stockage de la clé privée : affichée une fois dans le dashboard au moment de la création (ou
+  d'une migration), jamais conservée.
+- Détection de statut : tentative de connexion SSH active plutôt qu'un simple `docker inspect`,
+  pour confirmer une joignabilité réelle et pas seulement l'état du conteneur.
+- Sélection du Worker : le premier `AVAILABLE` par ordre de heartbeat le plus récent — pas de
+  stratégie de répartition de charge plus fine (CPU/mémoire), volontairement simplifié pour un
+  prototype.

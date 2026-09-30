@@ -1,3 +1,13 @@
+{% if notification %}
+<div style="background:#fff3cd; border:1px solid #ffc107; padding:12px; margin-bottom:15px;">
+    <strong>Une de vos instances a été migrée suite à une panne de Worker.</strong>
+    Voici votre nouvelle clé SSH — elle ne sera plus jamais affichée :
+    <pre style="background:#f4f4f4; padding:10px; overflow-x:auto;">{{ notification.private_key }}</pre>
+    <code>ssh -i votre_nouvelle_cle -p ... root@{{ notification.ssh_host }}</code>
+    (le port est visible dans le tableau ci-dessous)
+</div>
+{% endif %}
+
 {% extends "base.html" %}
 {% block content %}
 <h1>Bonjour, {{ current_user.username }}</h1>
@@ -9,12 +19,20 @@
         <th>Distribution</th>
         <th>Expire le</th>
         <th>Statut</th>
+        <th>SSH</th>
     </tr>
     {% for rental in rentals %}
     <tr>
-        <td>{{ rental.distribution }}</td>
-        <td>{{ rental.expires_at }}</td>
+        <td>{{ rental.instance.distribution.name }}</td>
+        <td>{{ rental.end_time }}</td>
         <td>{{ rental.status }}</td>
+        <td>
+            {% if rental.instance.worker %}
+                <code>ssh -p {{ rental.instance.ssh_port }} root@{{ rental.instance.worker.ip }}</code>
+            {% else %}
+                —
+            {% endif %}
+        </td>
     </tr>
     {% endfor %}
 </table>

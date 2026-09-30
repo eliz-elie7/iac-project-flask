@@ -6,7 +6,7 @@
 
 <pre style="background:#f4f4f4; padding:10px; overflow-x:auto;">{{ private_key }}</pre>
 
-<p>Connexion : <code>ssh -i votre_cle -p {{ rental.instance_state.ssh_port if rental.instance_state else '?' }} root@{{ rental.instance_state.ssh_host if rental.instance_state else '?' }}</code></p>
+<p>Connexion : <code>ssh -i votre_cle -p {{ rental.instance.ssh_port }} root@{{ ssh_host }}</code></p>
 
 <a href="{{ url_for('dashboard.index') }}">Retour au dashboard</a>
 {% endblock %}

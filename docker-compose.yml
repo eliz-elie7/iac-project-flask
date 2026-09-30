@@ -8,10 +8,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ./app:/code/app
-      - ./instances:/code/instances
-      - ./ansible:/code/ansible
-      - /var/run/docker.sock:/var/run/docker.sock
+      - .:/code
 
   db:
     image: postgres:16
@@ -23,6 +20,63 @@ services:
       - POSTGRES_DB=iac_project
     volumes:
       - pgdata:/var/lib/postgresql/data
+
+  worker1:
+    build: ./worker
+    hostname: worker1
+    environment:
+      - WORKER_HOSTNAME=worker1
+      - WORKER_IP=${INSTANCES_PUBLIC_HOST}
+      - CONTROLLER_URL=http://web:5000
+      - HEARTBEAT_INTERVAL=20
+    volumes:
+      - ./instances:/data/instances
+      - ./ansible:/data/ansible:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - label=disable
+    depends_on:
+      - web
+
+  worker2:
+    build: ./worker
+    hostname: worker2
+    environment:
+      - WORKER_HOSTNAME=worker2
+      - WORKER_IP=${INSTANCES_PUBLIC_HOST}
+      - CONTROLLER_URL=http://web:5000
+      - HEARTBEAT_INTERVAL=20
+    volumes:
+      - ./instances:/data/instances
+      - ./ansible:/data/ansible:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - label=disable
+    depends_on:
+      - web
+
+  worker3:
+    build: ./worker
+    hostname: worker3
+    environment:
+      - WORKER_HOSTNAME=worker3
+      - WORKER_IP=${INSTANCES_PUBLIC_HOST}
+      - CONTROLLER_URL=http://web:5000
+      - HEARTBEAT_INTERVAL=20
+    volumes:
+      - ./instances:/data/instances
+      - ./ansible:/data/ansible:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    security_opt:
+      - label=disable
+    depends_on:
+      - web
 
 volumes:
   pgdata:

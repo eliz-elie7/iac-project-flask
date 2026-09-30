@@ -6,3 +6,4 @@ psycopg[binary]
 APScheduler
 python-dotenv
 ansible-core
+requests

@@ -4,8 +4,9 @@
 <form method="POST">
     <label>Distribution</label>
     <select name="distribution" required>
-        <option value="ubuntu-22.04">Ubuntu 22.04</option>
-        <option value="debian-12">Debian 12</option>
+        {% for d in distributions %}
+        <option value="{{ d.name }}">{{ d.name }}</option>
+        {% endfor %}
     </select>
 
     <label>Durée (heures)</label>
