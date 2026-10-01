@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from app.extensions import db, migrate, login_manager
 from app.models import User
 from app.scheduler import init_scheduler
+from app.instances import instances_bp
 
 load_dotenv()
 
@@ -41,3 +42,5 @@ app = create_app()
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
+
+app.register_blueprint(instances_bp)

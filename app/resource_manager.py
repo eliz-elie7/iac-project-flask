@@ -164,3 +164,15 @@ def migrate_instance_to_new_worker(distribution) -> dict:
     """Utilisé quand le Worker hébergeant une instance est OFFLINE :
     provisionne une instance de remplacement sur un autre Worker disponible."""
     return provision_on_best_worker(distribution)
+
+
+def terminate_rental(rental) -> bool:
+    """Arrête et nettoie l'instance associée à une location, puis la marque terminée."""
+    if rental.instance is not None and rental.instance.worker is not None:
+        if not teardown_instance(rental.instance):
+            return False
+        rental.instance.status = 'stopped'
+
+    rental.status = 'terminated'
+    db.session.commit()
+    return True

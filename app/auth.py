@@ -3,14 +3,19 @@ from flask_login import login_user, logout_user, login_required
 from werkzeug.security import generate_password_hash, check_password_hash
 from app.extensions import db
 from app.models import User
+from app.validation import validate_username, validate_password, ValidationError
 
 auth_bp = Blueprint('auth', __name__)
 
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        try:
+            username = validate_username(request.form.get('username'))
+            password = validate_password(request.form.get('password'))
+        except ValidationError as e:
+            flash(str(e))
+            return redirect(url_for('auth.register'))
 
         if User.query.filter_by(username=username).first():
             flash("Ce nom d'utilisateur est déjà pris.")
@@ -27,8 +32,8 @@ def register():
 @auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
 
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
