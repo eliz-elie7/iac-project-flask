@@ -1,10 +1,21 @@
 {% extends "base.html" %}
+{% block title %}Connexion · Location d'instances{% endblock %}
+{% block main_class %}narrow{% endblock %}
 {% block content %}
-<h1>Connexion</h1>
-<form method="POST">
-    <input type="text" name="username" placeholder="Nom d'utilisateur" required>
-    <input type="password" name="password" placeholder="Mot de passe" required>
-    <button type="submit">Se connecter</button>
-</form>
-<a href="{{ url_for('auth.register') }}">Pas encore de compte ? S'inscrire</a>
+<div class="panel">
+    <h1>Connexion</h1>
+    <p class="hint" style="margin-bottom:1.5rem;">Connectez-vous pour gérer vos instances.</p>
+    <form method="POST">
+        <div class="field">
+            <label for="username">Nom d'utilisateur</label>
+            <input type="text" id="username" name="username" autocomplete="username" autofocus required>
+        </div>
+        <div class="field">
+            <label for="password">Mot de passe</label>
+            <input type="password" id="password" name="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-block">Se connecter</button>
+    </form>
+</div>
+<p class="auth-switch">Pas encore de compte ? <a href="{{ url_for('auth.register') }}">Créer un compte</a></p>
 {% endblock %}
