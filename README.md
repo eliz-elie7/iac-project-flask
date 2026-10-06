@@ -388,43 +388,6 @@ iac-project-flask/
 
 ---
 
-## 🌿 Stratégie Git
-
-Compte tenu de la taille de l'équipe, une stratégie Git simple est utilisée.
-
-### `main`
-
-Branche stable contenant une version fonctionnelle et démontrable du projet.
-
-### Branches de travail
-
-Chaque fonctionnalité ou correction peut être développée dans une branche dédiée :
-
-```text
-feature/nom-de-la-fonctionnalite
-fix/nom-du-bug
-```
-
-Après validation locale, les changements sont fusionnés dans `main`.
-
-Aucune branche `develop` n'est utilisée, car elle apporterait une complexité inutile pour une équipe de deux personnes et un projet de cette durée.
-
----
-
-## ⚠️ Limites connues
-
-Le projet constitue un **prototype pédagogique** et présente certaines limites :
-
-* Les Workers sont des conteneurs Docker partageant le moteur Docker de l'hôte plutôt que de véritables machines virtuelles isolées.
-* Il n'y a actuellement pas de pipeline CI/CD.
-* Aucun scan automatisé de vulnérabilités n'est intégré (Trivy, Gitleaks, etc.).
-* Il n'existe pas encore de suite de tests automatisés complète.
-* La validation repose principalement sur des tests manuels.
-* La sélection des Workers est volontairement simplifiée et ne repose pas encore sur une mesure réelle de la charge CPU ou mémoire.
-* Le système de stockage des instances reste adapté à un environnement de démonstration et non à une infrastructure de production.
-
----
-
 ## 🎓 Contexte académique
 
 Projet réalisé dans le cadre du cours :
@@ -450,8 +413,10 @@ L'objectif du projet est de mettre en pratique les concepts de :
 
 Projet réalisé en binôme dans le cadre du Projet 3.
 
-* **Karim Hssini**
+* **Karim**
 * **Elie**
+* **Abdoulaye**
+* **Rayane**
 
 ---
 
