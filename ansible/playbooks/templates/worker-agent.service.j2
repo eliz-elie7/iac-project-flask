@@ -1,0 +1,14 @@
+[Unit]
+Description=Worker Agent
+After=network.target docker.service
+Requires=docker.service
+
+[Service]
+EnvironmentFile=/opt/worker-agent/agent.env
+ExecStart=/opt/worker-agent/venv/bin/python /opt/worker-agent/agent.py
+Restart=always
+RestartSec=5
+User=root
+
+[Install]
+WantedBy=multi-user.target

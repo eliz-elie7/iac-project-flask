@@ -1,0 +1,16 @@
+---
+- name: Démarrer (ou redémarrer) le Worker Agent
+  hosts: workers
+  become: true
+  tasks:
+    - name: Activer et (re)démarrer le Worker Agent
+      ansible.builtin.systemd:
+        name: worker-agent
+        state: restarted
+        enabled: true
+
+    - name: Attendre que l'agent réponde sur son port interne
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host }}"
+        port: 6000
+        timeout: 30

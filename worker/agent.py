@@ -19,7 +19,7 @@ WORKER_HOSTNAME = os.environ["WORKER_HOSTNAME"]            # ex: "worker1", nom 
 WORKER_IP = os.environ.get("WORKER_IP", WORKER_HOSTNAME)   # résolu via le réseau Docker interne
 CONTROLLER_URL = os.environ["CONTROLLER_URL"]               # ex: "http://web:5000"
 HEARTBEAT_INTERVAL = int(os.environ.get("HEARTBEAT_INTERVAL", 20))
-INTERNAL_HOST = "host.docker.internal"
+INTERNAL_HOST = "127.0.0.1"     # l'agent tourne nativement sur la VM, plus dans un conteneur cherchant à joindre son hôte
 
 INSTANCES_DIR = "/data/instances"
 TEMPLATE_PATH = "/data/instances/templates/docker-compose.template.yml"

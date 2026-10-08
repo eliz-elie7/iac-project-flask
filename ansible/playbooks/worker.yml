@@ -1,0 +1,77 @@
+---
+- name: Déployer le Worker Agent sur chaque Worker
+  hosts: workers
+  become: true
+  vars:
+    agent_dir: /opt/worker-agent
+    controller_url: "http://192.168.56.1:5000"   # IP de l'hôte sur le réseau privé
+
+  tasks:
+    - name: Installer Python, pip et openssh-client
+      ansible.builtin.apt:
+        name: [python3, python3-pip, python3-venv, openssh-client]
+        state: present
+
+    - name: Créer l'arborescence de l'agent et des données
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop:
+        - "{{ agent_dir }}"
+        - /data/instances/templates
+        - /data/instances/keys
+        - /data/ansible/playbooks
+
+    - name: Copier le code de l'agent
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../worker/agent.py"
+        dest: "{{ agent_dir }}/agent.py"
+        mode: '0644'
+
+    - name: Copier les dépendances Python
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../worker/requirements.txt"
+        dest: "{{ agent_dir }}/requirements.txt"
+        mode: '0644'
+
+    - name: Copier le template docker-compose des instances
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../instances/templates/docker-compose.template.yml"
+        dest: /data/instances/templates/docker-compose.template.yml
+        mode: '0644'
+
+    - name: Copier le playbook de configuration des instances louées
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../ansible/playbooks/configure_instance.yml"
+        dest: /data/ansible/playbooks/configure_instance.yml
+        mode: '0644'
+
+    - name: Créer l'environnement virtuel Python et installer les dépendances
+      ansible.builtin.pip:
+        requirements: "{{ agent_dir }}/requirements.txt"
+        virtualenv: "{{ agent_dir }}/venv"
+        virtualenv_command: python3 -m venv
+
+    - name: Installer les collections Ansible nécessaires à l'agent
+      ansible.builtin.command:
+        cmd: "{{ agent_dir }}/venv/bin/ansible-galaxy collection install community.docker ansible.posix"
+      changed_when: false
+
+    - name: Déployer le fichier d'environnement de l'agent
+      ansible.builtin.template:
+        src: templates/worker-agent.env.j2
+        dest: "{{ agent_dir }}/agent.env"
+        mode: '0644'
+
+    - name: Déployer le service systemd de l'agent
+      ansible.builtin.template:
+        src: templates/worker-agent.service.j2
+        dest: /etc/systemd/system/worker-agent.service
+        mode: '0644'
+      notify: Recharger systemd
+
+  handlers:
+    - name: Recharger systemd
+      ansible.builtin.systemd:
+        daemon_reload: true
