@@ -5,6 +5,7 @@ Requires=docker.service
 
 [Service]
 EnvironmentFile=/opt/worker-agent/agent.env
+Environment="PATH=/opt/worker-agent/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 ExecStart=/opt/worker-agent/venv/bin/python /opt/worker-agent/agent.py
 Restart=always
 RestartSec=5

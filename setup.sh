@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
+# Démarre toute la plateforme : 3 Workers (VM Vagrant) + Controller (Flask + PostgreSQL).
+# À lancer depuis la racine du projet.
 set -e
 
-echo "==> Vérification des prérequis (docker)..."
-command -v docker >/dev/null 2>&1 || { echo "Docker n'est pas installé. Abandon."; exit 1; }
+PROVIDER="${VAGRANT_PROVIDER:-libvirt}"   # ou : VAGRANT_PROVIDER=virtualbox ./setup.sh
 
-echo "==> Construction des images de base pour les instances louées (avec SSH préinstallé)..."
-docker build -t iac-project/ubuntu-22.04-ssh instances/images/ubuntu-22.04
-docker build -t iac-project/debian-12-ssh instances/images/debian-12
+echo "==> Vérification des prérequis (docker, vagrant, ansible)..."
+for cmd in docker vagrant ansible-playbook; do
+    command -v "$cmd" >/dev/null 2>&1 || { echo "$cmd n'est pas installé. Abandon."; exit 1; }
+done
 
 echo "==> Préparation du fichier .env..."
 if [ ! -f .env ]; then
@@ -16,24 +18,35 @@ else
     echo ".env existe déjà, on ne le touche pas."
 fi
 
-echo "==> Création des dossiers nécessaires (clés SSH, instances)..."
-mkdir -p instances/keys
+echo "==> Démarrage des 3 Workers (VM Vagrant, provider : $PROVIDER)..."
+vagrant up --provider="$PROVIDER" --no-parallel
 
-echo "==> Démarrage de toute l'infrastructure (Flask, PostgreSQL, Workers)..."
-docker compose up -d --build
+echo "==> Provisioning des Workers avec Ansible (Docker, Worker Agent, images de base)..."
+ansible-playbook -i ansible/inventory/hosts.ini ansible/playbooks/site.yml
 
-echo "==> Application des migrations de base de données..."
+echo "==> Démarrage du Controller (Flask + PostgreSQL)..."
+docker compose up -d --build db
+sleep 8
+
+echo "==> Migrations de base de données..."
 if [ ! -d "app/migrations" ]; then
     docker compose run --rm web flask db init
-    docker compose run --rm web flask db migrate -m "initial schema"
+    docker compose run --rm web flask db migrate -m "schema initial"
 fi
 docker compose run --rm web flask db upgrade
 
-echo "==> Peuplement des distributions disponibles..."
-docker compose exec -T web flask shell <<'PY'
-from app.seed import seed_distributions
-seed_distributions()
-PY
+echo "==> Démarrage de l'application..."
+docker compose up -d --build web
 
-echo "==> Terminé. L'application est disponible sur http://localhost:5000"
-echo "    Les Workers devraient apparaître via GET http://localhost:5000/workers d'ici quelques secondes."
+echo "==> Peuplement des distributions disponibles..."
+sleep 5
+docker compose exec web python -c "
+from app.app import app
+from app.seed import seed_distributions
+with app.app_context():
+    seed_distributions()
+"
+
+echo "==> Terminé. Application : http://localhost:5000"
+echo "    Les 3 Workers apparaissent sur http://localhost:5000/workers d'ici ~20 secondes."
+echo "    Sous Fedora/Linux avec Docker + libvirt, voir la section « Réseau » du README si les VM n'ont pas Internet."

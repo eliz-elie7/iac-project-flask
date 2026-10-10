@@ -1,8 +1,7 @@
 services:
   web:
     build: ./app
-    ports:
-      - "5000:5000"
+    network_mode: host
     depends_on:
       - db
     env_file:
@@ -18,6 +17,8 @@ services:
       - POSTGRES_USER=iac_user
       - POSTGRES_PASSWORD=iac_pass
       - POSTGRES_DB=iac_project
+    ports:
+      - "127.0.0.1:5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 

@@ -4,7 +4,7 @@
   become: true
   vars:
     agent_dir: /opt/worker-agent
-    controller_url: "http://192.168.56.1:5000"   # IP de l'hôte sur le réseau privé
+    controller_url: "http://192.168.56.1:5000"
 
   tasks:
     - name: Installer Python, pip et openssh-client
@@ -46,6 +46,25 @@
         src: "{{ playbook_dir }}/../../ansible/playbooks/configure_instance.yml"
         dest: /data/ansible/playbooks/configure_instance.yml
         mode: '0644'
+
+    - name: Copier les Dockerfile des images de base
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../../instances/images/"
+        dest: /data/instances/images/
+        directory_mode: '0755'
+
+    - name: Construire les images de base sur le Worker (si absentes)
+      ansible.builtin.shell: |
+        if docker image inspect iac-project/{{ item }}-ssh >/dev/null 2>&1; then
+          echo EXISTS
+        else
+          docker build -t iac-project/{{ item }}-ssh /data/instances/images/{{ item }} && echo BUILT
+        fi
+      args:
+        executable: /bin/bash
+      loop: [ubuntu-22.04, debian-12]
+      register: base_images
+      changed_when: "'BUILT' in base_images.stdout"
 
     - name: Créer l'environnement virtuel Python et installer les dépendances
       ansible.builtin.pip:
