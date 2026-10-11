@@ -1,0 +1,56 @@
+- name: Configurer les VMs Workers
+  hosts: workers
+  become: yes # Exécuter les commandes en tant qu'administrateur (root)
+  tasks:
+    - name: Mettre à jour le cache apt
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Installer les dépendances Docker
+      ansible.builtin.apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - software-properties-common
+        state: present
+
+    - name: Ajouter la clé GPG officielle de Docker
+      ansible.builtin.apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Ajouter le dépôt Docker
+      ansible.builtin.apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu jammy stable"
+        state: present
+
+    - name: Installer Docker
+      ansible.builtin.apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Construire l'image Docker de l'Agent Python
+      # Magie de Vagrant : le dossier de ton projet Windows/WSL est partagé 
+      # automatiquement dans la VM à l'emplacement "/vagrant"
+      ansible.builtin.command: docker build -t worker-agent /vagrant/worker
+      changed_when: false
+
+    - name: Lancer le conteneur de l'Agent Worker
+      # On reproduit exactement ce qui était dans votre ancien docker-compose.yml
+      # mais de manière distribuée sur les 3 machines virtuelles.
+      ansible.builtin.shell: |
+        docker rm -f {{ inventory_hostname }}_agent || true
+        docker run -d --name {{ inventory_hostname }}_agent \
+          --restart always \
+          -e WORKER_HOSTNAME={{ inventory_hostname }} \
+          -e WORKER_IP={{ ansible_host }} \
+          -e CONTROLLER_URL=http://192.168.56.10:5000 \
+          -e HEARTBEAT_INTERVAL=20 \
+          -v /vagrant/instances:/data/instances \
+          -v /vagrant/ansible:/data/ansible:ro \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          worker-agent
