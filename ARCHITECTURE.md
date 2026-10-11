@@ -23,26 +23,42 @@ applicative (Flask, BDD) et la partie infrastructure (provisioning, Ansible) sé
 
 ---
 
-## 2. Infrastructure multi-Worker : conteneurs plutôt que VM Vagrant
+## 2. Infrastructure multi-Worker : trois VM Vagrant provisionnées par Ansible
 
-Le sujet du projet demande une infrastructure de type Controller + plusieurs Workers
-provisionnés via Vagrant. Nous avons choisi de simuler les trois Workers par des **conteneurs
-Docker** faisant tourner un agent Python/Flask, plutôt que par de véritables VM Vagrant.
+Les trois Workers (`worker1`, `worker2`, `worker3`) sont de véritables machines virtuelles,
+déclarées dans un `Vagrantfile` à la racine du projet (box Ubuntu 22.04, 1 vCPU, 1 Go de RAM,
+provider libvirt/KVM ; VirtualBox est également supporté par le même fichier). Chaque VM possède
+son propre noyau, son propre moteur Docker et une adresse sur un réseau privé dédié
+(192.168.56.11 à .13), ce qui garantit une isolation réelle entre Workers.
 
-**Justification** : à deux personnes et avec un délai contraint, monter, faire tourner et
-déboguer trois VM complètes en plus du reste de l'application représentait un risque de
-planning disproportionné par rapport à la valeur pédagogique ajoutée pour ce projet. Cette
-simplification a été validée par l'enseignante, à condition que le reste du comportement
-attendu (enregistrement dynamique, heartbeat, sélection par un Resource Manager, migration en
-cas de panne) soit intégralement respecté.
+**Provisioning par Ansible (push model)** : après `vagrant up`, le playbook maître `site.yml`
+enchaîne trois playbooks idempotents :
+- `docker.yml` : installation de Docker Engine et du plugin Compose ;
+- `worker.yml` : déploiement du Worker Agent (code, environnement virtuel Python, collections
+  Ansible, template docker-compose, construction des images de base avec SSH préinstallé,
+  fichier d'environnement et unité systemd) ;
+- `deploy.yml` : démarrage du service `worker-agent` et attente de sa disponibilité.
 
-**Limite assumée** : les trois Workers, bien que logiquement distincts (hostname, IP, cycle de
-vie propres), partagent tous le même moteur Docker sous-jacent — celui de la machine hôte. Ce
-ne sont donc pas des environnements d'exécution réellement isolés comme le seraient des VM
-Vagrant, chacune avec son propre noyau. Une évolution possible du prototype consisterait à
-remplacer ces conteneurs par de vraies VM (Vagrant ou cloud), sans changer le contrat
-d'interface entre le Resource Manager et les Worker Agents, précisément conçu pour rester
-agnostique de la nature physique du Worker.
+L'agent tourne en service systemd (redémarrage automatique en cas de crash) et s'enregistre
+lui-même auprès du Controller. Les images de base des instances louées sont construites sur
+chaque Worker, puisque chaque VM a son propre moteur Docker.
+
+**Le Controller** (Flask, Resource Manager, scheduler) et sa base PostgreSQL tournent via
+Docker Compose sur la machine hôte. Le service `web` utilise le réseau de l'hôte
+(`network_mode: host`) pour joindre directement les VM : le trafic d'un conteneur Docker vers
+un réseau libvirt est filtré par défaut par le pare-feu de l'hôte, alors que l'hôte lui-même
+atteint les VM sans difficulté. Ce choix est une simplification assumée : le Controller n'est
+pas lui-même une VM Vagrant.
+
+**Justification** : le Controller concentre la logique applicative en cours de
+développement (rechargement du code monté en volume), et le virtualiser aurait ajouté une
+couche de déploiement sans changer le comportement du système. Le contrat d'interface avec les
+Workers (voir `INTERFACE.md`) est indépendant du lieu d'exécution du Controller : le
+déplacer dans une VM reste possible sans modifier les Workers.
+
+**Réseau** : un réseau libvirt dédié (`vagrant-workers`, 192.168.56.0/24) relie l'hôte
+(192.168.56.1) et les trois VM. Les VM joignent le Controller sur 192.168.56.1:5000, le
+Controller joint les agents sur leur IP, port 6000.
 
 ---
 
@@ -75,7 +91,7 @@ dur. On peut en ajouter ou en désactiver une sans toucher à l'application.
 |---|---|---|
 | `id` | int, PK | |
 | `hostname` | string, unique | ex : "worker1" |
-| `ip` | string | adresse communiquée à l'utilisateur pour SSH |
+| `ip` | string | IP privée de la VM : sert à la fois au Controller pour joindre l'agent et à l'utilisateur pour la connexion SSH |
 | `status` | enum | `AVAILABLE`, `BUSY`, `OFFLINE` |
 | `cpu` | string | rapporté par le Worker Agent au heartbeat |
 | `memory` | string | idem |
