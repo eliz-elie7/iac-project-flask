@@ -105,7 +105,7 @@ def provision_on_best_worker(distribution) -> dict:
     instance_key = uuid.uuid4().hex[:8]
     try:
         resp = requests.post(
-            f"http://{worker.hostname}:{WORKER_PORT}/internal/provision",
+            f"http://{worker.ip}:{WORKER_PORT}/internal/provision",
             json={"instance_id": instance_key, "docker_image": distribution.docker_image},
             timeout=60,
         )
@@ -115,7 +115,7 @@ def provision_on_best_worker(distribution) -> dict:
                 detail = resp.json().get('error', resp.text)
             except ValueError:
                 detail = resp.text
-            raise ProvisioningError(f"Worker {worker.hostname} : {detail}")
+            raise ProvisioningError(f"Worker {worker.ip} : {detail}")
         result = resp.json()
     finally:
         worker.status = 'AVAILABLE'
@@ -129,7 +129,7 @@ def provision_on_best_worker(distribution) -> dict:
 def check_instance_status(instance: Instance) -> str:
     try:
         resp = requests.get(
-            f"http://{instance.worker.hostname}:{WORKER_PORT}/internal/status/{instance.container_id}",
+            f"http://{instance.worker.ip}:{WORKER_PORT}/internal/status/{instance.container_id}",
             timeout=5,
         )
         resp.raise_for_status()
@@ -141,7 +141,7 @@ def check_instance_status(instance: Instance) -> str:
 def repair_instance(instance: Instance) -> bool:
     try:
         resp = requests.post(
-            f"http://{instance.worker.hostname}:{WORKER_PORT}/internal/repair/{instance.container_id}",
+            f"http://{instance.worker.ip}:{WORKER_PORT}/internal/repair/{instance.container_id}",
             timeout=30,
         )
         return resp.status_code == 200
@@ -152,7 +152,7 @@ def repair_instance(instance: Instance) -> bool:
 def teardown_instance(instance: Instance) -> bool:
     try:
         resp = requests.post(
-            f"http://{instance.worker.hostname}:{WORKER_PORT}/internal/teardown/{instance.container_id}",
+            f"http://{instance.worker.ip}:{WORKER_PORT}/internal/teardown/{instance.container_id}",
             timeout=30,
         )
         return resp.status_code == 200

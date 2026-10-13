@@ -1,0 +1,4 @@
+---
+- import_playbook: docker.yml
+- import_playbook: worker.yml
+- import_playbook: deploy.yml

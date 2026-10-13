@@ -2,7 +2,3 @@ venv/
 __pycache__/
 *.pyc
 .env
-instances/keys/
-# Generated rental instances
-instances/*
-!instances/.gitkeep

@@ -1,4 +1,5 @@
 import os
+import logging
 from flask import Flask
 from dotenv import load_dotenv
 from app.extensions import db, migrate, login_manager
@@ -10,6 +11,7 @@ load_dotenv()
 
 def create_app():
     app = Flask(__name__)
+    app.logger.setLevel(logging.INFO)
     app.config['SECRET_KEY'] = os.environ['FLASK_SECRET_KEY']
     app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL']
     app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False

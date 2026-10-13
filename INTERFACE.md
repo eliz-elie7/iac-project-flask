@@ -13,13 +13,10 @@ Utilisateur → Flask (Controller) → Resource Manager → Worker Agent (conten
                     └──────── register / heartbeat ──────────┘
 ```
 
-Chaque Worker est un conteneur Docker autonome faisant tourner un agent Python/Flask. Trois
-Workers sont déployés (`worker1`, `worker2`, `worker3`), chacun avec son propre accès au
-moteur Docker de l'hôte.
-
-**Simplification assumée et validée par l'enseignante** : les Workers sont des conteneurs
-partageant le moteur Docker de la machine hôte, et non des VM Vagrant isolées. Voir
-`ARCHITECTURE.md` pour la justification complète.
+Chaque Worker est une VM Vagrant autonome, avec son propre moteur Docker, sur laquelle tourne
+un agent Python/Flask déployé par Ansible comme service systemd. Trois Workers sont déployés
+(`worker1`, `worker2`, `worker3`, IP 192.168.56.11 à .13). Le Resource Manager joint chaque agent
+par son adresse IP, enregistrée dans la table `Worker`.
 
 ---
 
@@ -50,7 +47,7 @@ migrées (voir section 6).
 ## 3. Provisioning d'une instance (Resource Manager → Worker Agent choisi)
 
 ```
-POST http://<worker_hostname>:6000/internal/provision
+POST http://<worker_ip>:6000/internal/provision
 Body : { "instance_id": str, "docker_image": str }
 ```
 
@@ -79,18 +76,18 @@ web, jamais stockée en base, ni côté Controller ni côté Worker.
 ## 4. Vérification de statut
 
 ```
-GET http://<worker_hostname>:6000/internal/status/<instance_id>
+GET http://<worker_ip>:6000/internal/status/<instance_id>
 Retour : { "status": "running" | "stopped" | "unreachable" }
 ```
 
 Le Worker Agent vérifie que le conteneur tourne (`docker inspect`) puis tente une connexion
-TCP vers son propre port SSH exposé sur l'hôte (`host.docker.internal`), sans authentification,
+TCP vers le port SSH publié sur la VM elle-même (`127.0.0.1`), sans authentification,
 pour confirmer que `sshd` répond réellement (pas seulement que le conteneur est démarré).
 
 ## 5. Réparation (même Worker)
 
 ```
-POST http://<worker_hostname>:6000/internal/repair/<instance_id>
+POST http://<worker_ip>:6000/internal/repair/<instance_id>
 Retour : { "status": "repaired" }
 ```
 
@@ -112,7 +109,7 @@ prochain chargement du dashboard (jamais persistée en base).
 ## 7. Fin de location / nettoyage
 
 ```
-POST http://<worker_hostname>:6000/internal/teardown/<instance_id>
+POST http://<worker_ip>:6000/internal/teardown/<instance_id>
 Retour : { "status": "removed" }
 ```
 
@@ -130,8 +127,8 @@ Arrête et supprime le conteneur, nettoie les clés SSH et le dossier de l'insta
   explicites côté Controller :
   - `NoWorkerAvailableError` — aucun Worker `AVAILABLE` au moment de la demande
   - `ProvisioningError` — échec renvoyé par l'agent (image introuvable, échec Ansible, etc.)
-- Le port interne des agents (6000) n'est jamais exposé sur l'hôte — seul le réseau Docker
-  Compose interne y donne accès.
+- Le port des agents (6000) n'est joignable que depuis le réseau privé des VM
+  (192.168.56.0/24), donc depuis l'hôte et le Controller, jamais depuis l'extérieur.
 
 ## Points tranchés
 
