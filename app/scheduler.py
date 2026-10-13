@@ -25,7 +25,7 @@ def _check_instance_health(app):
             status = check_instance_status(instance)
             instance.status = status
 
-            if status == 'unreachable':
+            if status in ('unreachable', 'stopped'):
                 if repair_instance(instance):
                     app.logger.info(f"Instance {instance.id} réparée sur son Worker actuel")
                 else:
