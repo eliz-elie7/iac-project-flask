@@ -1,18 +1,51 @@
 {% extends "base.html" %}
+{% block title %}Louer une instance · Location d'instances{% endblock %}
+{% block main_class %}narrow{% endblock %}
 {% block content %}
-<h1>Louer une instance</h1>
-<form method="POST">
-    <label>Distribution</label>
-    <select name="distribution" required>
-        {% for d in distributions %}
-        <option value="{{ d.name }}">{{ d.name }}</option>
-        {% endfor %}
-    </select>
+<div class="page-head">
+    <div>
+        <h1>Louer une instance</h1>
+        <p>Choisissez une distribution et une durée de location.</p>
+    </div>
+</div>
 
-    <label>Durée (heures)</label>
-    <input type="number" name="duration_hours" min="1" max="72" value="1" required>
+<div class="panel">
+    <form method="POST">
+        <fieldset class="field picker">
+            <legend>Distribution</legend>
+            {% for d in distributions %}
+            <label class="picker-item">
+                <input type="radio" name="distribution" value="{{ d.name }}" {% if loop.first %}checked{% endif %} required>
+                <span>{{ d.name }}</span>
+            </label>
+            {% endfor %}
+        </fieldset>
 
-    <button type="submit">Louer</button>
-</form>
-<a href="{{ url_for('dashboard.index') }}">Retour au dashboard</a>
+        <div class="field">
+            <label for="duration_hours">Durée (heures)</label>
+            <div class="duration-row">
+                <input type="number" id="duration_hours" name="duration_hours" min="1" max="72" value="1" required>
+            </div>
+            <div class="presets">
+                <button type="button" class="btn btn-ghost btn-sm" data-hours="1">1 h</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-hours="6">6 h</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-hours="24">24 h</button>
+                <button type="button" class="btn btn-ghost btn-sm" data-hours="72">72 h</button>
+            </div>
+            <p class="hint">De 1 à 72 heures.</p>
+        </div>
+
+        <button type="submit" class="btn btn-block">Louer l'instance</button>
+    </form>
+</div>
+
+<p class="auth-switch"><a href="{{ url_for('dashboard.index') }}">Retour à mes instances</a></p>
+
+<script>
+document.querySelectorAll('[data-hours]').forEach(function (b) {
+    b.addEventListener('click', function () {
+        document.getElementById('duration_hours').value = b.dataset.hours;
+    });
+});
+</script>
 {% endblock %}

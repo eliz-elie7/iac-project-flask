@@ -1,12 +1,36 @@
 {% extends "base.html" %}
+{% block title %}Instance créée · Location d'instances{% endblock %}
 {% block content %}
-<h1>Instance créée</h1>
-<p><strong>Attention :</strong> cette clé privée ne sera plus jamais affichée. Copiez-la et
-   conservez-la en lieu sûr avant de quitter cette page.</p>
+<div class="page-head">
+    <div>
+        <h1>Instance créée</h1>
+        <p>Votre instance est prête. Récupérez votre clé SSH avant de quitter cette page.</p>
+    </div>
+</div>
 
-<pre style="background:#f4f4f4; padding:10px; overflow-x:auto;">{{ private_key }}</pre>
+<div class="callout" role="alert">
+    <strong>Cette clé privée ne sera plus jamais affichée.</strong>
+    Copiez-la ou téléchargez-la, et conservez-la en lieu sûr.
+</div>
 
-<p>Connexion : <code>ssh -i votre_cle -p {{ rental.instance.ssh_port }} root@{{ ssh_host }}</code></p>
+<div class="panel">
+    <h2>Clé privée</h2>
+    <div class="keyblock">
+        <pre id="private-key">{{ private_key }}</pre>
+        <div class="actions">
+            <button type="button" class="btn btn-sm" data-copy-from="#private-key">Copier la clé</button>
+            <button type="button" class="btn btn-sm" data-download-from="#private-key" data-filename="cle_ssh.pem">Télécharger</button>
+        </div>
+    </div>
 
-<a href="{{ url_for('dashboard.index') }}">Retour au dashboard</a>
+    <h2 style="margin-top:1.5rem; margin-bottom:0.6rem;">Connexion</h2>
+    {% set cmd = 'ssh -i votre_cle -p ' ~ rental.instance.ssh_port ~ ' root@' ~ ssh_host %}
+    <div class="ssh">
+        <code>{{ cmd }}</code>
+        <button type="button" class="btn btn-sm" data-copy="{{ cmd }}">Copier</button>
+    </div>
+    <p class="hint">Remplacez <code>votre_cle</code> par le chemin du fichier enregistré. Sous Linux ou macOS, restreignez ses droits avec <code>chmod 600</code>.</p>
+</div>
+
+<p class="auth-switch"><a href="{{ url_for('dashboard.index') }}">Retour à mes instances</a></p>
 {% endblock %}

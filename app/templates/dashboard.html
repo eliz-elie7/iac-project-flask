@@ -1,50 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Mes instances · Location d'instances{% endblock %}
+{% block content %}
+
 {% if notification %}
-<div style="background:#fff3cd; border:1px solid #ffc107; padding:12px; margin-bottom:15px;">
+<div class="callout" role="alert">
     <strong>Une de vos instances a été migrée suite à une panne de Worker.</strong>
-    Voici votre nouvelle clé SSH — elle ne sera plus jamais affichée :
-    <pre style="background:#f4f4f4; padding:10px; overflow-x:auto;">{{ notification.private_key }}</pre>
-    <code>ssh -i votre_nouvelle_cle -p ... root@{{ notification.ssh_host }}</code>
-    (le port est visible dans le tableau ci-dessous)
+    <p>Voici votre nouvelle clé SSH. Elle ne sera plus jamais affichée : enregistrez-la avant de quitter cette page.</p>
+    <div class="keyblock">
+        <pre id="migrated-key">{{ notification.private_key }}</pre>
+        <div class="actions">
+            <button type="button" class="btn btn-sm" data-copy-from="#migrated-key">Copier la clé</button>
+            <button type="button" class="btn btn-sm" data-download-from="#migrated-key" data-filename="cle_ssh.pem">Télécharger</button>
+        </div>
+    </div>
+    <p style="margin-top:0.9rem;">Hôte de connexion : <code>{{ notification.ssh_host }}</code>. Le port est indiqué dans la liste ci-dessous.</p>
 </div>
 {% endif %}
 
-{% extends "base.html" %}
-{% block content %}
-<h1>Bonjour, {{ current_user.username }}</h1>
-<a href="{{ url_for('auth.logout') }}">Se déconnecter</a>
+<div class="page-head">
+    <div>
+        <h1>Mes instances</h1>
+        <p>Instances louées et leur commande de connexion SSH.</p>
+    </div>
+    <a class="btn" href="{{ url_for('dashboard.rent') }}">Louer une instance</a>
+</div>
 
-<h2>Mes instances louées</h2>
-<table>
-    <tr>
-        <th>Distribution</th>
-        <th>Expire le</th>
-        <th>Statut</th>
-        <th>SSH</th>
-        <th></th>
-    </tr>
+{% if rentals %}
+<ul class="rental-list">
     {% for rental in rentals %}
-    <tr>
-        <td>{{ rental.instance.distribution.name }}</td>
-        <td>{{ rental.end_time }}</td>
-        <td>{{ rental.status }}</td>
-        <td>
-            {% if rental.instance.worker %}
-                <code>ssh -p {{ rental.instance.ssh_port }} root@{{ rental.instance.worker.ip }}</code>
-            {% else %}
-                —
-            {% endif %}
-        </td>
-        <td>
+    <li class="rental {% if rental.status == 'active' %}is-active{% endif %}">
+        <div class="rental-main">
+            <div class="rental-title">
+                <h2>{{ rental.instance.distribution.name }}</h2>
+                <span class="badge badge-{{ rental.status }}">{{ rental.status }}</span>
+            </div>
+            <p class="rental-meta">Expire le {{ rental.end_time }}</p>
+        </div>
+
+        <div class="rental-actions">
             {% if rental.status == 'active' %}
             <form method="POST" action="{{ url_for('dashboard.stop_rental', rental_id=rental.id) }}"
                   onsubmit="return confirm('Arrêter définitivement cette instance ?');">
-                <button type="submit">Arrêter</button>
+                <button type="submit" class="btn btn-danger btn-sm">Arrêter</button>
             </form>
             {% endif %}
-        </td>
-    </tr>
-    {% endfor %}
-</table>
+        </div>
 
-<a href="{{ url_for('dashboard.rent') }}">Louer une nouvelle instance</a>
+        {% if rental.instance.worker %}
+        {% set cmd = 'ssh -p ' ~ rental.instance.ssh_port ~ ' root@' ~ rental.instance.worker.ip %}
+        <div class="ssh">
+            <code>{{ cmd }}</code>
+            <button type="button" class="btn btn-sm" data-copy="{{ cmd }}">Copier</button>
+        </div>
+        {% else %}
+        <p class="no-ssh">Connexion SSH indisponible pour le moment.</p>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% else %}
+<div class="empty">
+    <h2>Aucune instance pour l'instant</h2>
+    <p>Choisissez une distribution et une durée, et votre instance est prête à l'emploi en SSH.</p>
+    <a class="btn" href="{{ url_for('dashboard.rent') }}">Louer ma première instance</a>
+</div>
+{% endif %}
+
 {% endblock %}

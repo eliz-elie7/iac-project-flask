@@ -2,20 +2,69 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Location d'instances</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}Location d'instances{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;650&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    {% with messages = get_flashed_messages() %}
+    <header class="site-header">
+        <div class="inner">
+            <a class="brand" href="{{ url_for('dashboard.index') }}">
+                <span class="brand-mark" aria-hidden="true">&gt;_</span>
+                Location d'instances
+            </a>
+            {% if current_user.is_authenticated %}
+            <div class="userbar">
+                <span class="who">Connecté en tant que <strong>{{ current_user.username }}</strong></span>
+                <a href="{{ url_for('auth.logout') }}">Se déconnecter</a>
+            </div>
+            {% endif %}
+        </div>
+    </header>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-            <ul class="flash">
-            {% for message in messages %}
-                <li>{{ message }}</li>
+            <ul class="flash" role="status">
+            {% for category, message in messages %}
+                <li class="{{ category }}">{{ message }}</li>
             {% endfor %}
             </ul>
         {% endif %}
     {% endwith %}
 
-    {% block content %}{% endblock %}
+    <main class="{% block main_class %}{% endblock %}">
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+    // Copy / download helpers: <button data-copy="texte"> or data-copy-from="#id",
+    // <button data-download-from="#id" data-filename="cle_ssh.pem">
+    document.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-copy], [data-copy-from], [data-download-from]');
+        if (!btn) return;
+
+        var from = btn.dataset.copyFrom || btn.dataset.downloadFrom;
+        var text = btn.dataset.copy || (from && document.querySelector(from).textContent.trim());
+
+        if (btn.dataset.downloadFrom) {
+            var blob = new Blob([text + '\n'], { type: 'text/plain' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = btn.dataset.filename || 'cle_ssh.pem';
+            a.click();
+            URL.revokeObjectURL(a.href);
+            return;
+        }
+
+        var label = btn.textContent;
+        navigator.clipboard.writeText(text).then(function () {
+            btn.textContent = 'Copié';
+            setTimeout(function () { btn.textContent = label; }, 1500);
+        });
+    });
+    </script>
 </body>
 </html>
